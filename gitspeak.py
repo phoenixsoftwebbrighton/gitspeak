@@ -67,7 +67,6 @@ def show_success(command, output=""):
 
 def handle_error(error_text, context):
     """
-    The Swiss army knife moment:
     1. Search Decipher's database automatically
     2. Show translation if found
     3. Offer to submit to community database if not
@@ -75,7 +74,6 @@ def handle_error(error_text, context):
     match = decipher_lookup(error_text)
 
     if match:
-        # Found in Decipher — show translation right here in GitSpeak
         steps = "\n".join([f"  {i+1}. {s}" for i, s in enumerate(match['fix_steps'])])
         console.print(Panel(
             f"[bold]What this means:[/bold]\n  {match['human_truth']}\n\n"
@@ -85,7 +83,6 @@ def handle_error(error_text, context):
             border_style="cyan"
         ))
     else:
-        # Not in database — show the raw error then offer to submit
         console.print(Panel(
             f"[bold]What went wrong:[/bold]\n{error_text}\n\n"
             f"[bold]Context:[/bold] {context}",
@@ -174,10 +171,24 @@ def cmd_save():
 
     ok, out = run(commit_cmd)
     if not ok:
-        handle_error(out, f"trying to commit: {safe_message}")
-        return
+        # If nothing to commit, still try to push in case there are unpushed commits
+        if "nothing to commit" in out:
+            console.print("[dim]Nothing new to commit — checking if there's anything to push...[/dim]\n")
+        else:
+            handle_error(out, f"trying to commit: {safe_message}")
+            return
 
     ok, out = run(push_cmd)
+
+    # If remote has commits we don't have locally, pull first then push
+    if not ok and ("fetch first" in out or "rejected" in out):
+        console.print("[dim]Remote has new changes — pulling first...[/dim]\n")
+        ok, pull_out = run("git pull --rebase origin main")
+        if not ok:
+            handle_error(pull_out, "trying to pull before pushing")
+            return
+        ok, out = run(push_cmd)
+
     if ok:
         show_success(f"{commit_cmd} && {push_cmd}", "Everything saved and pushed. ✅")
     else:
@@ -207,7 +218,8 @@ def cmd_push():
         handle_error(out, "trying to push to origin main")
 
 def cmd_pull():
-    command = "git pull origin main"
+    # --rebase keeps history clean and handles divergent branches automatically
+    command = "git pull --rebase origin main"
     console.print(f"\n[dim]Running: {command}[/dim]\n")
     ok, out = run(command)
     if ok:
