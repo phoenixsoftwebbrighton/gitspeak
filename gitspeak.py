@@ -2,6 +2,7 @@
 import subprocess
 import json
 import os
+import random
 from pathlib import Path
 from rich.console import Console
 from rich.panel import Panel
@@ -10,6 +11,29 @@ from datetime import datetime
 
 console = Console()
 
+# ── rotating goodbyes ─────────────────────────────────────────────────────────
+
+GOODBYES = [
+    "Till next time — I'm here whenever you need me. 🙂",
+    "Go build something brilliant. I'll be here when you're back.",
+    "Rest that brain — you've earned it. See you soon.",
+    "Another day, another thing shipped. Nice work.",
+    "I'm not going anywhere. Come back whenever.",
+    "That's a wrap. You did good today.",
+    "Off you go — go touch grass. I'll be here.",
+    "See you on the other side. Keep building.",
+    "Closing up shop for now. You know where to find me.",
+    "Till next time, Phoenix. 🚀",
+    "You shipped something today. That counts.",
+    "The repo is safe. Go rest.",
+    "Done for now — but the toolkit's always here.",
+    "Great session. Same time tomorrow?",
+    "Every commit counts. See you soon.",
+]
+
+def goodbye():
+    console.print(f"\n[cyan]{random.choice(GOODBYES)}[/cyan]")
+
 # ── find Decipher's database ──────────────────────────────────────────────────
 
 TOOLS_DIR = Path(__file__).parent.parent
@@ -17,14 +41,12 @@ DECIPHER_ERRORS = TOOLS_DIR / "decipher" / "errors.json"
 DECIPHER_UNKNOWN = TOOLS_DIR / "decipher" / "unknown_errors.json"
 
 def load_decipher_db():
-    """Load Decipher's error database if it exists"""
     if DECIPHER_ERRORS.exists():
         with open(DECIPHER_ERRORS, 'r') as f:
             return json.load(f)
     return []
 
 def save_to_decipher_unknown(error_text, context, tool="Git"):
-    """Submit an unknown error to Decipher's community queue"""
     if not DECIPHER_UNKNOWN.exists():
         return False
     with open(DECIPHER_UNKNOWN, 'r') as f:
@@ -44,7 +66,6 @@ def save_to_decipher_unknown(error_text, context, tool="Git"):
     return len(unknown)
 
 def decipher_lookup(error_text):
-    """Search Decipher's database for a matching error"""
     db = load_decipher_db()
     search = error_text.lower()
     for entry in db:
@@ -66,11 +87,6 @@ def show_success(command, output=""):
     console.print(Panel(msg, title="[bold green]✅ Done[/bold green]", border_style="green"))
 
 def handle_error(error_text, context):
-    """
-    1. Search Decipher's database automatically
-    2. Show translation if found
-    3. Offer to submit to community database if not
-    """
     match = decipher_lookup(error_text)
 
     if match:
@@ -135,7 +151,6 @@ def startup_check():
         ok3, status = run("git status --short")
         changes = len(status.strip().split("\n")) if status.strip() else 0
         change_text = f"{changes} unsaved change(s)" if changes else "nothing to save"
-
         decipher_status = "✅ connected" if DECIPHER_ERRORS.exists() else "⚠️  not found"
 
         console.print(Panel(
@@ -171,7 +186,6 @@ def cmd_save():
 
     ok, out = run(commit_cmd)
     if not ok:
-        # If nothing to commit, still try to push in case there are unpushed commits
         if "nothing to commit" in out:
             console.print("[dim]Nothing new to commit — checking if there's anything to push...[/dim]\n")
         else:
@@ -180,7 +194,6 @@ def cmd_save():
 
     ok, out = run(push_cmd)
 
-    # If remote has commits we don't have locally, pull first then push
     if not ok and ("fetch first" in out or "rejected" in out):
         console.print("[dim]Remote has new changes — pulling first...[/dim]\n")
         ok, pull_out = run("git pull --rebase origin main")
@@ -218,7 +231,6 @@ def cmd_push():
         handle_error(out, "trying to push to origin main")
 
 def cmd_pull():
-    # --rebase keeps history clean and handles divergent branches automatically
     command = "git pull --rebase origin main"
     console.print(f"\n[dim]Running: {command}[/dim]\n")
     ok, out = run(command)
@@ -377,13 +389,13 @@ def main():
         try:
             keyword = input("gitspeak → ").strip().lower()
         except (KeyboardInterrupt, EOFError):
-            console.print("\n[cyan]Goodbye. 🙂[/cyan]")
+            goodbye()
             break
 
         if not keyword:
             continue
         if keyword in ("exit", "quit", "q"):
-            console.print("\n[cyan]Goodbye. 🙂[/cyan]")
+            goodbye()
             break
         if keyword in COMMANDS:
             print()
