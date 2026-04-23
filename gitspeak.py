@@ -300,7 +300,7 @@ def cmd_switch():
         console.print(f"\n[dim]Available branches:[/dim]\n{out}\n")
     name = ask("Which branch do you want to switch to?")
     if not name:
-        console.print("[yellow]No name entered — cancelled.[/yellow]")
+        console.print("[yellow]No name entered — cancelled.[/dim]")
         return
     command = f"git checkout {name}"
     ok, out = run(command)
@@ -402,10 +402,57 @@ def main():
             COMMANDS[keyword]()
             print()
         else:
-            console.print(
-                f"\n[yellow]'{keyword}' isn't a GitSpeak command.[/yellow] "
-                f"[dim]Type 'help' to see what's available.[/dim]\n"
-            )
+            # Check if they typed a commit message by mistake
+            commit_indicators = [
+                keyword.startswith('feat:'),
+                keyword.startswith('fix:'),
+                keyword.startswith('chore:'),
+                keyword.startswith('docs:'),
+                keyword.startswith('add '),
+                keyword.startswith('update '),
+                keyword.startswith('remove '),
+                len(keyword.split()) > 2
+            ]
+
+            if any(commit_indicators):
+                console.print(
+                    f"\n[yellow]→ Looks like you typed a commit message![/yellow]\n"
+                    f"[dim]  Did you mean to use 'save' first?[/dim]"
+                )
+                use_it = input(f"\n  Use '{keyword}' as your commit message? (yes/no): ").strip().lower()
+                if use_it in ["yes", "y"]:
+                    print()
+                    safe_message = keyword.replace("'", "")
+                    commit_cmd = f"git add -A && git commit -m '{safe_message}'"
+                    push_cmd = "git push origin main"
+                    console.print(f"\n[dim]Running: {commit_cmd} && {push_cmd}[/dim]\n")
+                    ok, out = run(commit_cmd)
+                    if not ok:
+                        if "nothing to commit" in out:
+                            console.print("[dim]Nothing new to commit — checking if there's anything to push...[/dim]\n")
+                        else:
+                            handle_error(out, f"trying to commit: {safe_message}")
+                    else:
+                        ok, out = run(push_cmd)
+                        if not ok and ("fetch first" in out or "rejected" in out):
+                            console.print("[dim]Remote has new changes — pulling first...[/dim]\n")
+                            ok, pull_out = run("git pull --rebase origin main")
+                            if not ok:
+                                handle_error(pull_out, "trying to pull before pushing")
+                            else:
+                                ok, out = run(push_cmd)
+                        if ok:
+                            show_success(f"{commit_cmd} && {push_cmd}", "Everything saved and pushed. ✅")
+                        else:
+                            handle_error(out, "trying to push to origin main")
+                    print()
+                else:
+                    console.print("[dim]No problem — type 'save' when you're ready.[/dim]\n")
+            else:
+                console.print(
+                    f"\n[yellow]'{keyword}' isn't a GitSpeak command.[/yellow] "
+                    f"[dim]Type 'help' to see what's available.[/dim]\n"
+                )
 
 if __name__ == "__main__":
     main()
